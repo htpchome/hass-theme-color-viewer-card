@@ -3,7 +3,7 @@
  * A custom card that displays Home Assistant theme CSS variables with their colors
  */
 
-const VERSION = "1.2.5";
+const VERSION = "1.2.8";
 
 import {
     LitElement,
@@ -513,6 +513,15 @@ class HassThemeColorViewerCardEditor extends LitElement {
         .dialog-error {
             margin-top: 8px;
         }
+
+        .dialog-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding-top: 16px;
+            margin-top: 16px;
+            border-top: 1px solid var(--divider-color, #e0e0e0);
+        }
     `;
 
     constructor() {
@@ -773,14 +782,26 @@ class HassThemeColorViewerCardEditor extends LitElement {
     }
 
     _renderAddDialog() {
+        if (!this._showAddDialog) {
+            return html``;
+        }
+
         const schema = this._getAddFormSchema();
 
         return html`
             <ha-dialog
-                .open=${this._showAddDialog}
-                @closed=${this._closeAddDialog}
+                .open=${true}
                 heading="Add CSS Variable">
                 
+                <ha-dialog-header slot="heading">
+                    <span slot="title">Add CSS Variable</span>
+                    <ha-icon-button
+                        slot="navigationIcon"
+                        @click=${this._handleCancelClick}>
+                        <ha-icon icon="mdi:close"></ha-icon>
+                    </ha-icon-button>
+                </ha-dialog-header>
+
                 <div class="dialog-content">
                     <ha-form
                         .hass=${this.hass}
@@ -797,23 +818,34 @@ class HassThemeColorViewerCardEditor extends LitElement {
                               ${this._addFormError}
                           </ha-alert>`
                         : ""}
-                </div>
 
-                <ha-dialog-footer slot="footer">
-                    <mwc-button
-                        slot="secondaryAction"
-                        dialogAction="cancel"
-                        @click=${this._closeAddDialog}>
-                        Cancel
-                    </mwc-button>
-                    <mwc-button
-                        slot="primaryAction"
-                        @click=${this._confirmAddVariable}>
-                        Add
-                    </mwc-button>
-                </ha-dialog-footer>
+                    <div class="dialog-actions">
+                        <ha-button
+                            appearance="plain"
+                            @click=${this._handleCancelClick}>
+                            Cancel
+                        </ha-button>
+                        <ha-button
+                            appearance="filled"
+                            @click=${this._handleAddClick}>
+                            Add
+                        </ha-button>
+                    </div>
+                </div>
             </ha-dialog>
         `;
+    }
+
+    _handleCancelClick(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        this._closeAddDialog();
+    }
+
+    _handleAddClick(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        this._confirmAddVariable();
     }
 }
 
