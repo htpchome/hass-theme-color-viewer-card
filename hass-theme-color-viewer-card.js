@@ -3,7 +3,7 @@
  * A custom card that displays Home Assistant theme CSS variables with their colors
  */
 
-const VERSION = "1.0.2";
+const VERSION = "1.1.3";
 
 import {
     LitElement,
@@ -138,10 +138,7 @@ class HassThemeColorViewerCard extends LitElement {
         hass: {},
         config: { state: true },
         _variables: { state: true },
-        _newVariable: { state: true },
-        _draggedIndex: { state: true },
-        _dragOverIndex: { state: true },
-        _validationError: { state: true },
+        _copiedIndex: { state: true },
     };
 
     static styles = css`
@@ -278,148 +275,11 @@ class HassThemeColorViewerCard extends LitElement {
         .copy-button.copied {
             background: rgba(76, 175, 80, 0.9);
         }
-
-        /* Editor styles */
-        .editor-container {
-            padding: 16px;
-        }
-
-        .editor-header {
-            font-size: 1.1em;
-            font-weight: 500;
-            margin-bottom: 16px;
-        }
-
-        .variable-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-
-        .variable-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px;
-            background: var(--secondary-background-color, #f5f5f5);
-            border-radius: 4px;
-            border: 1px solid var(--divider-color, #e0e0e0);
-            transition:
-                background 0.2s,
-                border-color 0.2s;
-        }
-
-        .variable-item.dragging {
-            opacity: 0.5;
-            background: var(--primary-color, #03a9f4);
-        }
-
-        .variable-item.drag-over {
-            border-color: var(--primary-color, #03a9f4);
-            border-width: 2px;
-        }
-
-        .drag-handle {
-            cursor: grab;
-            color: var(--secondary-text-color, #757575);
-            display: flex;
-            align-items: center;
-        }
-
-        .drag-handle:active {
-            cursor: grabbing;
-        }
-
-        .variable-input-container {
-            flex: 1;
-            display: flex;
-            gap: 8px;
-        }
-
-        .variable-input {
-            flex: 1;
-        }
-
-        .variable-dropdown {
-            width: 200px;
-        }
-
-        .remove-button {
-            color: var(--error-color, #db4437);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-        }
-
-        .add-section {
-            display: flex;
-            gap: 8px;
-            align-items: flex-end;
-            padding-top: 16px;
-            border-top: 1px solid var(--divider-color, #e0e0e0);
-        }
-
-        .add-input {
-            flex: 1;
-        }
-
-        .add-dropdown {
-            width: 200px;
-        }
-
-        .add-button {
-            margin-bottom: 8px;
-        }
-
-        .validation-error {
-            color: var(--error-color, #db4437);
-            font-size: 0.85em;
-            margin-top: 4px;
-        }
-
-        .input-row {
-            display: flex;
-            gap: 8px;
-            align-items: flex-start;
-            flex: 1;
-        }
-
-        .color-preview {
-            width: 32px;
-            height: 32px;
-            border-radius: 4px;
-            border: 1px solid var(--divider-color, #e0e0e0);
-            flex-shrink: 0;
-        }
-
-        .color-preview.fallback {
-            background-image:
-                repeating-linear-gradient(
-                    45deg,
-                    rgba(255, 0, 0, 0.4),
-                    rgba(255, 0, 0, 0.4) 2px,
-                    transparent 2px,
-                    transparent 8px
-                ),
-                repeating-linear-gradient(
-                    -45deg,
-                    rgba(255, 0, 0, 0.4),
-                    rgba(255, 0, 0, 0.4) 2px,
-                    transparent 2px,
-                    transparent 8px
-                );
-            background-color: #ffffff;
-        }
     `;
 
     constructor() {
         super();
         this._variables = [...DEFAULT_VARIABLES];
-        this._newVariable = "";
-        this._draggedIndex = null;
-        this._dragOverIndex = null;
-        this._validationError = "";
         this._copiedIndex = null;
     }
 
@@ -538,10 +398,12 @@ class HassThemeColorViewerCardEditor extends LitElement {
         hass: {},
         config: { state: true },
         _variables: { state: true },
-        _newVariable: { state: true },
         _draggedIndex: { state: true },
         _dragOverIndex: { state: true },
-        _validationError: { state: true },
+        _showAddDialog: { state: true },
+        _dialogInputValue: { state: true },
+        _dialogDropdownValue: { state: true },
+        _dialogValidationError: { state: true },
     };
 
     static styles = css`
@@ -595,19 +457,12 @@ class HassThemeColorViewerCardEditor extends LitElement {
             cursor: grabbing;
         }
 
-        .variable-input-container {
+        .variable-name {
             flex: 1;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .variable-input {
-            flex: 1;
-        }
-
-        .variable-dropdown {
-            width: 200px;
+            font-family: monospace;
+            font-size: 0.95em;
+            color: var(--primary-text-color, #212121);
+            padding: 4px 8px;
         }
 
         .remove-button {
@@ -619,30 +474,9 @@ class HassThemeColorViewerCardEditor extends LitElement {
 
         .add-section {
             display: flex;
-            flex-direction: column;
-            gap: 8px;
+            justify-content: center;
             padding-top: 16px;
             border-top: 1px solid var(--divider-color, #e0e0e0);
-        }
-
-        .add-row {
-            display: flex;
-            gap: 8px;
-            align-items: flex-end;
-        }
-
-        .add-input {
-            flex: 1;
-        }
-
-        .add-dropdown {
-            width: 200px;
-        }
-
-        .validation-error {
-            color: var(--error-color, #db4437);
-            font-size: 0.85em;
-            margin-top: 4px;
         }
 
         .color-preview {
@@ -672,20 +506,58 @@ class HassThemeColorViewerCardEditor extends LitElement {
             background-color: #ffffff;
         }
 
+        /* Dialog styles */
+        .dialog-content {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding: 16px 0;
+        }
+
+        .dialog-input-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .dialog-divider {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: var(--secondary-text-color, #757575);
+            font-size: 0.9em;
+        }
+
+        .dialog-divider::before,
+        .dialog-divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--divider-color, #e0e0e0);
+        }
+
+        .dialog-validation-error {
+            color: var(--error-color, #db4437);
+            font-size: 0.85em;
+            margin-top: 4px;
+        }
+
         ha-textfield,
         ha-select {
             display: block;
+            width: 100%;
         }
     `;
 
     constructor() {
         super();
         this._variables = [...DEFAULT_VARIABLES];
-        this._newVariable = "";
-        this._selectedDropdown = "";
         this._draggedIndex = null;
         this._dragOverIndex = null;
-        this._validationError = "";
+        this._showAddDialog = false;
+        this._dialogInputValue = "";
+        this._dialogDropdownValue = "";
+        this._dialogValidationError = "";
     }
 
     setConfig(config) {
@@ -724,61 +596,9 @@ class HassThemeColorViewerCardEditor extends LitElement {
         this.dispatchEvent(event);
     }
 
-    _handleVariableInput(index, value) {
-        const newVariables = [...this._variables];
-        newVariables[index] = value;
-        this._variables = newVariables;
-        this._fireConfigChanged();
-    }
-
-    _handleDropdownSelect(index, value) {
-        if (value) {
-            const newVariables = [...this._variables];
-            newVariables[index] = value;
-            this._variables = newVariables;
-            this._fireConfigChanged();
-        }
-    }
-
     _removeVariable(index) {
         const newVariables = this._variables.filter((_, i) => i !== index);
         this._variables = newVariables;
-        this._fireConfigChanged();
-    }
-
-    _handleNewVariableInput(e) {
-        this._newVariable = e.target.value;
-        this._validationError = "";
-    }
-
-    _handleNewDropdownSelect(e) {
-        this._selectedDropdown = e.target.value;
-        this._validationError = "";
-    }
-
-    _addVariable() {
-        const newValue = this._newVariable || this._selectedDropdown;
-
-        if (!newValue) {
-            this._validationError = "Please enter or select a variable";
-            return;
-        }
-
-        if (!isValidCssVariable(newValue)) {
-            this._validationError =
-                'Variable must start with "--" and contain only letters, numbers, hyphens, and underscores';
-            return;
-        }
-
-        if (this._variables.includes(newValue)) {
-            this._validationError = "This variable is already in the list";
-            return;
-        }
-
-        this._variables = [...this._variables, newValue];
-        this._newVariable = "";
-        this._selectedDropdown = "";
-        this._validationError = "";
         this._fireConfigChanged();
     }
 
@@ -828,6 +648,63 @@ class HassThemeColorViewerCardEditor extends LitElement {
             composed: true,
         });
         this.dispatchEvent(event);
+    }
+
+    // Dialog handlers
+    _openAddDialog() {
+        this._dialogInputValue = "";
+        this._dialogDropdownValue = "";
+        this._dialogValidationError = "";
+        this._showAddDialog = true;
+    }
+
+    _closeAddDialog() {
+        this._showAddDialog = false;
+        this._dialogInputValue = "";
+        this._dialogDropdownValue = "";
+        this._dialogValidationError = "";
+    }
+
+    _handleDialogInput(e) {
+        this._dialogInputValue = e.target.value;
+        this._dialogValidationError = "";
+        // Clear dropdown when typing
+        if (this._dialogInputValue) {
+            this._dialogDropdownValue = "";
+        }
+    }
+
+    _handleDialogDropdownSelect(e) {
+        this._dialogDropdownValue = e.target.value;
+        this._dialogValidationError = "";
+        // Clear text input when selecting from dropdown
+        if (this._dialogDropdownValue) {
+            this._dialogInputValue = "";
+        }
+    }
+
+    _confirmAddVariable() {
+        const newValue = this._dialogInputValue || this._dialogDropdownValue;
+
+        if (!newValue) {
+            this._dialogValidationError = "Please enter or select a variable";
+            return;
+        }
+
+        if (!isValidCssVariable(newValue)) {
+            this._dialogValidationError =
+                'Variable must start with "--" and contain only letters, numbers, hyphens, and underscores';
+            return;
+        }
+
+        if (this._variables.includes(newValue)) {
+            this._dialogValidationError = "This variable is already in the list";
+            return;
+        }
+
+        this._variables = [...this._variables, newValue];
+        this._fireConfigChanged();
+        this._closeAddDialog();
     }
 
     render() {
@@ -883,43 +760,7 @@ class HassThemeColorViewerCardEditor extends LitElement {
                                         ? `background: var(${variable}, transparent);`
                                         : ""}"></div>
 
-                                <div class="variable-input-container">
-                                    <ha-textfield
-                                        class="variable-input"
-                                        label="CSS Variable"
-                                        .value=${variable}
-                                        @input=${(e) =>
-                                            this._handleVariableInput(
-                                                index,
-                                                e.target.value,
-                                            )}></ha-textfield>
-
-                                    <ha-select
-                                        class="variable-dropdown"
-                                        label="Select from list"
-                                        .value=${""}
-                                        @selected=${(e) =>
-                                            this._handleDropdownSelect(
-                                                index,
-                                                e.target.value,
-                                            )}
-                                        @closed=${(e) => e.stopPropagation()}>
-                                        <mwc-list-item value=""
-                                            >-- Select --</mwc-list-item
-                                        >
-                                        ${HA_THEME_COLOR_VARIABLES.filter(
-                                            (v) =>
-                                                !this._variables.includes(v) ||
-                                                v === variable,
-                                        ).map(
-                                            (v) => html`
-                                                <mwc-list-item .value=${v}
-                                                    >${v}</mwc-list-item
-                                                >
-                                            `,
-                                        )}
-                                    </ha-select>
-                                </div>
+                                <span class="variable-name">${variable}</span>
 
                                 <div
                                     class="remove-button"
@@ -932,25 +773,62 @@ class HassThemeColorViewerCardEditor extends LitElement {
                 </div>
 
                 <div class="add-section">
-                    <div style="font-weight: 500;">Add New Variable:</div>
-                    <div class="add-row">
-                        <ha-textfield
-                            class="add-input"
-                            label="Enter CSS Variable (e.g., --my-color)"
-                            .value=${this._newVariable}
-                            @input=${this._handleNewVariableInput}
-                            @value-changed=${this._handleNewVariableInput}></ha-textfield>
+                    <ha-button @click=${this._openAddDialog}>
+                        <ha-icon icon="mdi:plus"></ha-icon>
+                        Add Variable
+                    </ha-button>
+                </div>
+            </div>
 
+            ${this._renderAddDialog()}
+        `;
+    }
+
+    _renderAddDialog() {
+        if (!this._showAddDialog) {
+            return html``;
+        }
+
+        // Get available variables (not already in the list)
+        const availableVariables = HA_THEME_COLOR_VARIABLES.filter(
+            (v) => !this._variables.includes(v),
+        );
+
+        return html`
+            <ha-dialog
+                .open=${this._showAddDialog}
+                heading="Add CSS Variable"
+                @closed=${this._closeAddDialog}>
+                <ha-dialog-header slot="heading">
+                    <ha-icon-button
+                        slot="navigationIcon"
+                        dialogAction="cancel"
+                        @click=${this._closeAddDialog}>
+                        <ha-icon icon="mdi:close"></ha-icon>
+                    </ha-icon-button>
+                    <span slot="title">Add CSS Variable</span>
+                </ha-dialog-header>
+
+                <div class="dialog-content" slot="content">
+                    <div class="dialog-input-section">
+                        <ha-textfield
+                            label="Enter CSS Variable"
+                            placeholder="e.g., --my-custom-color"
+                            .value=${this._dialogInputValue}
+                            @input=${this._handleDialogInput}
+                            @value-changed=${this._handleDialogInput}></ha-textfield>
+                    </div>
+
+                    <div class="dialog-divider">or select from list</div>
+
+                    <div class="dialog-input-section">
                         <ha-select
-                            class="add-dropdown"
-                            label="Or select from list"
-                            .value=${this._selectedDropdown}
-                            @selected=${this._handleNewDropdownSelect}
+                            label="Select CSS Variable"
+                            .value=${this._dialogDropdownValue}
+                            @selected=${this._handleDialogDropdownSelect}
                             @closed=${(e) => e.stopPropagation()}>
                             <mwc-list-item value="">-- Select --</mwc-list-item>
-                            ${HA_THEME_COLOR_VARIABLES.filter(
-                                (v) => !this._variables.includes(v),
-                            ).map(
+                            ${availableVariables.map(
                                 (v) => html`
                                     <mwc-list-item .value=${v}
                                         >${v}</mwc-list-item
@@ -958,21 +836,24 @@ class HassThemeColorViewerCardEditor extends LitElement {
                                 `,
                             )}
                         </ha-select>
-
-                        <ha-button
-                            class="add-button"
-                            @click=${() => this._addVariable()}>
-                            <ha-icon icon="mdi:plus"></ha-icon>
-                            Add
-                        </ha-button>
                     </div>
-                    ${this._validationError
-                        ? html`<div class="validation-error">
-                              ${this._validationError}
+
+                    ${this._dialogValidationError
+                        ? html`<div class="dialog-validation-error">
+                              ${this._dialogValidationError}
                           </div>`
                         : ""}
                 </div>
-            </div>
+
+                <ha-button slot="secondaryAction" @click=${this._closeAddDialog}>
+                    Cancel
+                </ha-button>
+                <ha-button
+                    slot="primaryAction"
+                    @click=${this._confirmAddVariable}>
+                    Add
+                </ha-button>
+            </ha-dialog>
         `;
     }
 }
