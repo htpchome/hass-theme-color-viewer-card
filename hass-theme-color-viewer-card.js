@@ -3,7 +3,7 @@
  * A custom card that displays Home Assistant theme CSS variables with their colors
  */
 
-const VERSION = "1.1.3";
+const VERSION = "1.1.4";
 
 import {
     LitElement,
@@ -698,7 +698,8 @@ class HassThemeColorViewerCardEditor extends LitElement {
         }
 
         if (this._variables.includes(newValue)) {
-            this._dialogValidationError = "This variable is already in the list";
+            this._dialogValidationError =
+                "This variable is already in the list";
             return;
         }
 
@@ -785,10 +786,6 @@ class HassThemeColorViewerCardEditor extends LitElement {
     }
 
     _renderAddDialog() {
-        if (!this._showAddDialog) {
-            return html``;
-        }
-
         // Get available variables (not already in the list)
         const availableVariables = HA_THEME_COLOR_VARIABLES.filter(
             (v) => !this._variables.includes(v),
@@ -797,62 +794,52 @@ class HassThemeColorViewerCardEditor extends LitElement {
         return html`
             <ha-dialog
                 .open=${this._showAddDialog}
-                heading="Add CSS Variable"
-                @closed=${this._closeAddDialog}>
-                <ha-dialog-header slot="heading">
-                    <ha-icon-button
-                        slot="navigationIcon"
-                        dialogAction="cancel"
-                        @click=${this._closeAddDialog}>
-                        <ha-icon icon="mdi:close"></ha-icon>
-                    </ha-icon-button>
-                    <span slot="title">Add CSS Variable</span>
-                </ha-dialog-header>
-
-                <div class="dialog-content" slot="content">
-                    <div class="dialog-input-section">
-                        <ha-textfield
-                            label="Enter CSS Variable"
-                            placeholder="e.g., --my-custom-color"
-                            .value=${this._dialogInputValue}
-                            @input=${this._handleDialogInput}
-                            @value-changed=${this._handleDialogInput}></ha-textfield>
-                    </div>
+                @closed=${this._closeAddDialog}
+                heading="Add CSS Variable">
+                
+                <div class="dialog-content">
+                    <ha-textfield
+                        label="Enter CSS Variable"
+                        placeholder="e.g., --my-custom-color"
+                        .value=${this._dialogInputValue}
+                        @input=${this._handleDialogInput}
+                        @value-changed=${this._handleDialogInput}></ha-textfield>
 
                     <div class="dialog-divider">or select from list</div>
 
-                    <div class="dialog-input-section">
-                        <ha-select
-                            label="Select CSS Variable"
-                            .value=${this._dialogDropdownValue}
-                            @selected=${this._handleDialogDropdownSelect}
-                            @closed=${(e) => e.stopPropagation()}>
-                            <mwc-list-item value="">-- Select --</mwc-list-item>
-                            ${availableVariables.map(
-                                (v) => html`
-                                    <mwc-list-item .value=${v}
-                                        >${v}</mwc-list-item
-                                    >
-                                `,
-                            )}
-                        </ha-select>
-                    </div>
+                    <ha-select
+                        label="Select CSS Variable"
+                        .value=${this._dialogDropdownValue}
+                        @selected=${this._handleDialogDropdownSelect}
+                        @closed=${(e) => e.stopPropagation()}>
+                        <mwc-list-item value="">-- Select --</mwc-list-item>
+                        ${availableVariables.map(
+                            (v) => html`
+                                <mwc-list-item .value=${v}>${v}</mwc-list-item>
+                            `,
+                        )}
+                    </ha-select>
 
                     ${this._dialogValidationError
-                        ? html`<div class="dialog-validation-error">
+                        ? html`<ha-alert alert-type="error">
                               ${this._dialogValidationError}
-                          </div>`
+                          </ha-alert>`
                         : ""}
                 </div>
 
-                <ha-button slot="secondaryAction" @click=${this._closeAddDialog}>
-                    Cancel
-                </ha-button>
-                <ha-button
-                    slot="primaryAction"
-                    @click=${this._confirmAddVariable}>
-                    Add
-                </ha-button>
+                <ha-dialog-footer slot="footer">
+                    <mwc-button
+                        slot="secondaryAction"
+                        dialogAction="cancel"
+                        @click=${this._closeAddDialog}>
+                        Cancel
+                    </mwc-button>
+                    <mwc-button
+                        slot="primaryAction"
+                        @click=${this._confirmAddVariable}>
+                        Add
+                    </mwc-button>
+                </ha-dialog-footer>
             </ha-dialog>
         `;
     }
