@@ -3,7 +3,7 @@
  * A custom card that displays Home Assistant theme CSS variables with their colors
  */
 
-const VERSION = "1.1.4";
+const VERSION = "1.2.5";
 
 import {
     LitElement,
@@ -128,7 +128,6 @@ const DEFAULT_VARIABLES = [
 const isValidCssVariable = (value) => {
     if (!value || typeof value !== "string") return false;
     if (!value.startsWith("--")) return false;
-    // Check for valid CSS custom property name (letters, numbers, hyphens, underscores)
     const validPattern = /^--[a-zA-Z][a-zA-Z0-9_-]*$/;
     return validPattern.test(value);
 };
@@ -304,7 +303,6 @@ class HassThemeColorViewerCard extends LitElement {
     }
 
     _getComputedColor(variable) {
-        if (!this.hass) return null;
         const root = document.documentElement;
         const computedStyle = getComputedStyle(root);
         const value = computedStyle.getPropertyValue(variable).trim();
@@ -392,7 +390,7 @@ class HassThemeColorViewerCard extends LitElement {
     }
 }
 
-// Editor component
+// Editor component using ha-form with schema-based selectors
 class HassThemeColorViewerCardEditor extends LitElement {
     static properties = {
         hass: {},
@@ -401,9 +399,8 @@ class HassThemeColorViewerCardEditor extends LitElement {
         _draggedIndex: { state: true },
         _dragOverIndex: { state: true },
         _showAddDialog: { state: true },
-        _dialogInputValue: { state: true },
-        _dialogDropdownValue: { state: true },
-        _dialogValidationError: { state: true },
+        _addFormData: { state: true },
+        _addFormError: { state: true },
     };
 
     static styles = css`
@@ -506,46 +503,15 @@ class HassThemeColorViewerCardEditor extends LitElement {
             background-color: #ffffff;
         }
 
-        /* Dialog styles */
         .dialog-content {
             display: flex;
             flex-direction: column;
             gap: 16px;
-            padding: 16px 0;
+            padding: 8px 0;
         }
 
-        .dialog-input-section {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .dialog-divider {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            color: var(--secondary-text-color, #757575);
-            font-size: 0.9em;
-        }
-
-        .dialog-divider::before,
-        .dialog-divider::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: var(--divider-color, #e0e0e0);
-        }
-
-        .dialog-validation-error {
-            color: var(--error-color, #db4437);
-            font-size: 0.85em;
-            margin-top: 4px;
-        }
-
-        ha-textfield,
-        ha-select {
-            display: block;
-            width: 100%;
+        .dialog-error {
+            margin-top: 8px;
         }
     `;
 
@@ -555,9 +521,8 @@ class HassThemeColorViewerCardEditor extends LitElement {
         this._draggedIndex = null;
         this._dragOverIndex = null;
         this._showAddDialog = false;
-        this._dialogInputValue = "";
-        this._dialogDropdownValue = "";
-        this._dialogValidationError = "";
+        this._addFormData = { custom_variable: "", select_variable: "" };
+        this._addFormError = "";
     }
 
     setConfig(config) {
@@ -570,7 +535,6 @@ class HassThemeColorViewerCardEditor extends LitElement {
     }
 
     _getComputedColor(variable) {
-        if (!this.hass) return null;
         const root = document.documentElement;
         const computedStyle = getComputedStyle(root);
         const value = computedStyle.getPropertyValue(variable).trim();
@@ -636,7 +600,8 @@ class HassThemeColorViewerCardEditor extends LitElement {
         this._dragOverIndex = null;
     }
 
-    _handleTitleChange(value) {
+    _handleTitleChange(e) {
+        const value = e.target.value;
         const event = new CustomEvent("config-changed", {
             detail: {
                 config: {
@@ -652,54 +617,77 @@ class HassThemeColorViewerCardEditor extends LitElement {
 
     // Dialog handlers
     _openAddDialog() {
-        this._dialogInputValue = "";
-        this._dialogDropdownValue = "";
-        this._dialogValidationError = "";
+        this._addFormData = { custom_variable: "", select_variable: "" };
+        this._addFormError = "";
         this._showAddDialog = true;
     }
 
     _closeAddDialog() {
         this._showAddDialog = false;
-        this._dialogInputValue = "";
-        this._dialogDropdownValue = "";
-        this._dialogValidationError = "";
+        this._addFormData = { custom_variable: "", select_variable: "" };
+        this._addFormError = "";
     }
 
-    _handleDialogInput(e) {
-        this._dialogInputValue = e.target.value;
-        this._dialogValidationError = "";
-        // Clear dropdown when typing
-        if (this._dialogInputValue) {
-            this._dialogDropdownValue = "";
-        }
+    _getAddFormSchema() {
+        const availableVariables = HA_THEME_COLOR_VARIABLES.filter(
+            (v) => !this._variables.includes(v),
+        );
+
+        const options = availableVariables.map((v) => ({
+            value: v,
+            label: v,
+        }));
+
+        return [
+            {
+                name: "custom_variable",
+                selector: {
+                    text: {},
+                },
+            },
+            {
+                name: "select_variable",
+                selector: {
+                    select: {
+                        options: options,
+                        mode: "dropdown",
+                    },
+                },
+            },
+        ];
     }
 
-    _handleDialogDropdownSelect(e) {
-        this._dialogDropdownValue = e.target.value;
-        this._dialogValidationError = "";
-        // Clear text input when selecting from dropdown
-        if (this._dialogDropdownValue) {
-            this._dialogInputValue = "";
-        }
+    _handleAddFormValueChanged(e) {
+        this._addFormData = e.detail.value;
+        this._addFormError = "";
+    }
+
+    _computeLabel(schema) {
+        const labels = {
+            custom_variable: "Enter CSS Variable (e.g., --my-custom-color)",
+            select_variable: "Or Select from List",
+        };
+        return labels[schema.name] || schema.name;
     }
 
     _confirmAddVariable() {
-        const newValue = this._dialogInputValue || this._dialogDropdownValue;
+        const customValue = this._addFormData.custom_variable || "";
+        const selectValue = this._addFormData.select_variable || "";
+        const newValue = customValue || selectValue;
 
         if (!newValue) {
-            this._dialogValidationError = "Please enter or select a variable";
+            this._addFormError = "Please enter or select a variable";
             return;
         }
 
         if (!isValidCssVariable(newValue)) {
-            this._dialogValidationError =
+            this._addFormError =
                 'Variable must start with "--" and contain only letters, numbers, hyphens, and underscores';
             return;
         }
 
         if (this._variables.includes(newValue)) {
-            this._dialogValidationError =
-                "This variable is already in the list";
+            this._addFormError = "This variable is already in the list";
             return;
         }
 
@@ -722,8 +710,7 @@ class HassThemeColorViewerCardEditor extends LitElement {
                 <ha-textfield
                     label="Card Title"
                     .value=${this.config.title || "Theme Colors"}
-                    @input=${(e) =>
-                        this._handleTitleChange(e.target.value)}></ha-textfield>
+                    @input=${this._handleTitleChange}></ha-textfield>
 
                 <div
                     style="margin-top: 16px; margin-bottom: 8px; font-weight: 500;">
@@ -786,10 +773,7 @@ class HassThemeColorViewerCardEditor extends LitElement {
     }
 
     _renderAddDialog() {
-        // Get available variables (not already in the list)
-        const availableVariables = HA_THEME_COLOR_VARIABLES.filter(
-            (v) => !this._variables.includes(v),
-        );
+        const schema = this._getAddFormSchema();
 
         return html`
             <ha-dialog
@@ -798,31 +782,19 @@ class HassThemeColorViewerCardEditor extends LitElement {
                 heading="Add CSS Variable">
                 
                 <div class="dialog-content">
-                    <ha-textfield
-                        label="Enter CSS Variable"
-                        placeholder="e.g., --my-custom-color"
-                        .value=${this._dialogInputValue}
-                        @input=${this._handleDialogInput}
-                        @value-changed=${this._handleDialogInput}></ha-textfield>
+                    <ha-form
+                        .hass=${this.hass}
+                        .data=${this._addFormData}
+                        .schema=${schema}
+                        .computeLabel=${(s) => this._computeLabel(s)}
+                        @value-changed=${this._handleAddFormValueChanged}>
+                    </ha-form>
 
-                    <div class="dialog-divider">or select from list</div>
-
-                    <ha-select
-                        label="Select CSS Variable"
-                        .value=${this._dialogDropdownValue}
-                        @selected=${this._handleDialogDropdownSelect}
-                        @closed=${(e) => e.stopPropagation()}>
-                        <mwc-list-item value="">-- Select --</mwc-list-item>
-                        ${availableVariables.map(
-                            (v) => html`
-                                <mwc-list-item .value=${v}>${v}</mwc-list-item>
-                            `,
-                        )}
-                    </ha-select>
-
-                    ${this._dialogValidationError
-                        ? html`<ha-alert alert-type="error">
-                              ${this._dialogValidationError}
+                    ${this._addFormError
+                        ? html`<ha-alert
+                              class="dialog-error"
+                              alert-type="error">
+                              ${this._addFormError}
                           </ha-alert>`
                         : ""}
                 </div>
